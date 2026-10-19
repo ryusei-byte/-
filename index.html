@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>かんたん算命学</title>
+<style>
+  :root { --bg:#faf7f2; --card:#fff; --text:#2b2b2b; --sub:#777; --accent:#b4513c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1c1b1a; --card:#2a2826; --text:#eee; --sub:#aaa; --accent:#e08a72; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+    font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; line-height:1.7; }
+  main { max-width:520px; margin:0 auto; padding:32px 16px; }
+  h1 { text-align:center; font-size:1.6rem; margin:0 0 4px; }
+  .lead { text-align:center; color:var(--sub); margin:0 0 24px; font-size:.9rem; }
+  form { display:flex; gap:8px; }
+  input[type=date] { flex:1; padding:10px; font-size:1rem; border:1px solid #ccc; border-radius:8px; }
+  button { padding:10px 18px; font-size:1rem; border:0; border-radius:8px;
+    background:var(--accent); color:#fff; cursor:pointer; }
+  .card { background:var(--card); border-radius:12px; padding:20px; margin-top:20px;
+    box-shadow:0 2px 8px rgba(0,0,0,.06); }
+  .card h2 { margin:0 0 8px; font-size:1.1rem; color:var(--accent); }
+  .big { font-size:1.8rem; font-weight:bold; }
+  .note { color:var(--sub); font-size:.8rem; margin-top:24px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>かんたん算命学</h1>
+  <p class="lead">生年月日を入れると、あなたの「日干」と「天中殺」を占います</p>
+
+  <form id="form">
+    <input type="date" id="birth" required min="1900-01-01" max="2100-12-31" value="1990-01-01">
+    <button type="submit">占う</button>
+  </form>
+
+  <div id="result"></div>
+
+  <p class="note">※ 生まれた日の干支（日柱）だけを使った簡易版です。本格的な鑑定では年・月の干支や十大主星なども見ます。</p>
+</main>
+
+<script>
+const STEMS = ["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"];
+const BRANCHES = ["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
+
+// 日干ごとの性格（算命学の十干の自然象意）
+const STEM_INFO = {
+  "甲": { name:"大樹", text:"まっすぐ上へ伸びる大木のような人。正義感が強く、一度決めたら曲げない頼もしさがあります。リーダー気質ですが、融通がきかない一面も。" },
+  "乙": { name:"草花", text:"しなやかで柔軟な草花の人。協調性が高く、どんな環境にも根を張れるたくましさがあります。人とのつながりで運が開きます。" },
+  "丙": { name:"太陽", text:"周りを明るく照らす太陽の人。陽気でオープン、自然と人が集まります。飽きっぽさには少し注意。" },
+  "丁": { name:"灯火", text:"暗闇を照らすろうそくの火の人。繊細で感受性が豊か、内に秘めた情熱があります。一つのことを深める力に優れています。" },
+  "戊": { name:"山", text:"どっしり構える山の人。包容力があり、周りに安心感を与えます。マイペースで、急かされるのは苦手。" },
+  "己": { name:"大地", text:"作物を育てる田畑の人。面倒見がよく、人を育てる才能があります。器用で多才ですが、抱え込みすぎに注意。" },
+  "庚": { name:"鉄・剣", text:"鍛えられた鋼の人。行動力と決断力があり、困難に強いタイプ。言葉がストレートになりがちなので、優しさも添えて。" },
+  "辛": { name:"宝石", text:"磨かれて輝く宝石の人。美意識が高く、品があります。プライドが高めで傷つきやすい面も、それが魅力です。" },
+  "壬": { name:"海", text:"大きく流れる海の人。スケールが大きく自由を愛します。知性と行動力を兼ね備え、型にはまらない生き方が似合います。" },
+  "癸": { name:"雨露", text:"大地を潤す雨の人。思いやり深く、知的で落ち着いています。目立たずとも、周りに欠かせない存在です。" },
+};
+
+// 天中殺（6グループ）
+const TENCHUSATSU = [
+  { name:"戌亥天中殺", text:"精神世界を大切にする独立心の強いタイプ。親や先祖に頼らず、自分の力で道を切り開きます。" },
+  { name:"申酉天中殺", text:"行動力抜群で、多忙なほど輝くタイプ。家庭と仕事、どちらも全力で取り組みます。" },
+  { name:"午未天中殺", text:"現実的で器が大きいタイプ。初代運を持ち、自分の世代で何かを築き上げます。" },
+  { name:"辰巳天中殺", text:"波乱を力に変えるエネルギッシュなタイプ。常識にとらわれない発想が武器です。" },
+  { name:"寅卯天中殺", text:"現実的でしっかり者のタイプ。将来を見据えて着実に物事を進めます。" },
+  { name:"子丑天中殺", text:"目上から引き立てられる伝統型。若いうちの苦労が後の大きな実りになります。" },
+];
+
+// 1900年1月1日 = 甲戌（60干支の10番目、0始まり）を基準に日干支を計算
+function dayPillar(y, m, d) {
+  const base = Date.UTC(1900, 0, 1);
+  const target = Date.UTC(y, m - 1, d);
+  const days = Math.round((target - base) / 86400000);
+  return (((10 + days) % 60) + 60) % 60;
+}
+
+document.getElementById("form").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = document.getElementById("birth").value;
+  if (!v) return;
+  const [y, m, d] = v.split("-").map(Number);
+  const idx = dayPillar(y, m, d);
+  const stem = STEMS[idx % 10];
+  const branch = BRANCHES[idx % 12];
+  const s = STEM_INFO[stem];
+  const t = TENCHUSATSU[Math.floor(idx / 10)];
+
+  document.getElementById("result").innerHTML = `
+    <div class="card">
+      <h2>あなたの日干支</h2>
+      <div class="big">${stem}${branch}</div>
+    </div>
+    <div class="card">
+      <h2>本質：${stem}（${s.name}）</h2>
+      <p>${s.text}</p>
+    </div>
+    <div class="card">
+      <h2>${t.name}</h2>
+      <p>${t.text}</p>
+    </div>`;
+});
+</script>
+</body>
+</html>
